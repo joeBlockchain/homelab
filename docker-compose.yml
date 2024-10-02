@@ -1,0 +1,174 @@
+services:
+  traefik:
+    image: traefik:v2.9
+    container_name: traefik
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dashboard.rule=Host(`traefik.home.joetaylor.me`)"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.tls.certresolver=cloudflare"
+    command:
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
+      - "--certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare"
+      - "--certificatesresolvers.cloudflare.acme.email=${CLOUDFLARE_API_EMAIL}"
+      - "--certificatesresolvers.cloudflare.acme.storage=/traefik/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik/letsencrypt:/letsencrypt"
+      - "./traefik/traefik.yml:/traefik.yml:ro"  
+    environment:
+      - CLOUDFLARE_API_EMAIL=${CLOUDFLARE_API_EMAIL}
+      - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
+    networks:
+      - traefik_network
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: n8n
+    restart: unless-stopped
+    environment:
+      - N8N_HOST=n8n.joetaylor.me
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.n8n.rule=Host(`n8n.joetaylor.me`)"
+      - "traefik.http.routers.n8n.entrypoints=websecure"
+      - "traefik.http.routers.n8n.tls=true"
+      - "traefik.http.routers.n8n.tls.certresolver=cloudflare"
+      - "traefik.http.services.n8n.loadbalancer.server.port=5678"
+    networks:
+      - traefik_network
+
+  welcome-home:
+    image: nginx:alpine
+    container_name: welcome-home
+    volumes:
+      - ./welcome_home/index.html:/usr/share/nginx/html/index.html:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.welcome-home.rule=Host(`home.joetaylor.me`)"
+      - "traefik.http.routers.welcome-home.entrypoints=websecure"
+      - "traefik.http.routers.welcome-home.tls=true"
+      - "traefik.http.routers.welcome-home.tls.certresolver=cloudflare"
+      - "traefik.http.routers.welcome-home-http.rule=Host(`home.joetaylor.me`)"
+      - "traefik.http.routers.welcome-home-http.entrypoints=web"
+      - "traefik.http.routers.welcome-home-http.middlewares=welcome-home-https-redirect"
+      - "traefik.http.middlewares.welcome-home-https-redirect.redirectscheme.scheme=https"
+    networks:
+      - traefik_network
+
+  # Authentik Services
+  postgresql:
+    image: postgres:16-alpine
+    container_name: authentik_postgresql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${PG_DB:-authentik} -U ${PG_USER:-authentik}"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 5s
+    environment:
+      POSTGRES_PASSWORD: ${PG_PASS}
+      POSTGRES_USER: ${PG_USER:-authentik}
+      POSTGRES_DB: ${PG_DB:-authentik}
+    volumes:
+      - database:/var/lib/postgresql/data
+    env_file:
+      - .env
+    networks:
+      - traefik_network
+
+  redis:
+    image: redis:alpine
+    container_name: authentik_redis
+    command: --save 60 1 --loglevel warning
+    restart: unless-stopped
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli ping | grep PONG"]
+      start_period: 20s
+      interval: 30s
+      retries: 5
+      timeout: 3s
+    networks:
+      - traefik_network
+
+  authentik_server:
+    image: ghcr.io/goauthentik/server:2024.8.3
+    container_name: authentik_server
+    restart: unless-stopped
+    command: server
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_ERROR_REPORTING__ENABLED: ${AUTHENTIK_ERROR_REPORTING__ENABLED}
+    volumes:
+      - ./authentik/media:/media
+      - ./authentik/custom-templates:/templates
+    env_file:
+      - .env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.authentik.rule=Host(`authentik.joetaylor.me`)"
+      - "traefik.http.routers.authentik.entrypoints=websecure"
+      - "traefik.http.routers.authentik.tls=true"
+      - "traefik.http.routers.authentik.tls.certresolver=cloudflare"
+      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
+    depends_on:
+      - postgresql
+      - redis
+    networks:
+      - traefik_network
+
+  authentik_worker:
+    image: ghcr.io/goauthentik/server:2024.8.3
+    container_name: authentik_worker
+    restart: unless-stopped
+    command: worker
+    user: root
+    environment:
+      AUTHENTIK_REDIS__HOST: redis
+      AUTHENTIK_POSTGRESQL__HOST: postgresql
+      AUTHENTIK_POSTGRESQL__USER: ${PG_USER:-authentik}
+      AUTHENTIK_POSTGRESQL__NAME: ${PG_DB:-authentik}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${PG_PASS}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./authentik/media:/media
+      - ./authentik/media:/media/public
+      - ./authentik/certs:/certs
+      - ./authentik/custom-templates:/templates
+    env_file:
+      - .env
+    depends_on:
+      - postgresql
+      - redis
+    networks:
+      - traefik_network
+
+volumes:
+  database:
+    driver: local
+  redis:
+    driver: local
+
+networks:
+  traefik_network:
+    external: true
