@@ -25,6 +25,7 @@ services:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "./traefik/letsencrypt:/letsencrypt"
       - "./traefik/traefik.yml:/traefik.yml:ro"  
+      - "./traefik/dynamic:/etc/traefik/dynamic:ro"
     environment:
       - CLOUDFLARE_API_EMAIL=${CLOUDFLARE_API_EMAIL}
       - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
@@ -56,10 +57,12 @@ services:
       - ./welcome_home/index.html:/usr/share/nginx/html/index.html:ro
     labels:
       - "traefik.enable=true"
+      # HTTPS Router
       - "traefik.http.routers.welcome-home.rule=Host(`home.joetaylor.me`)"
       - "traefik.http.routers.welcome-home.entrypoints=websecure"
-      - "traefik.http.routers.welcome-home.tls=true"
       - "traefik.http.routers.welcome-home.tls.certresolver=cloudflare"
+      - "traefik.http.routers.welcome-home.middlewares=authentik-auth@file"  
+      # HTTP Router (Redirect to HTTPS)
       - "traefik.http.routers.welcome-home-http.rule=Host(`home.joetaylor.me`)"
       - "traefik.http.routers.welcome-home-http.entrypoints=web"
       - "traefik.http.routers.welcome-home-http.middlewares=welcome-home-https-redirect"
