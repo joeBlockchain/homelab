@@ -1,6 +1,3 @@
-api:
-  dashboard: true
-
 entryPoints:
   web:
     address: ":80"
@@ -26,3 +23,13 @@ certificatesResolvers:
         resolvers:
           - "1.1.1.1:53"
           - "1.0.0.1:53"
+
+log:
+  level: INFO
+  filePath: /logs/traefik-container.log
+
+accessLog:
+  filePath: /logs/traefik-access.log
+
+api:
+  dashboard: true
