@@ -1,6 +1,78 @@
-# Ignore all .env files
+# Environment files (sensitive data)
 .env*
+.env
 
-# Ignore all acme.json files
+# Certificates (Traefik and SSL)
 **/acme.json
 **/acme*.json
+**/certs/
+
+# Database data
+**/pg_data/
+**/data/
+volumes/db/
+volumes/db/var/lib/postgresql/
+
+# Media and uploads (user-generated content)
+**/media/
+**/uploads/
+
+# Configuration files (sensitive data)
+**/config.json
+**/conf.yml
+
+# Allow tracking of sample config files
+!**/config.sample.json
+!**/conf.sample.yml
+
+# Log files
+*.log
+
+# System-specific files
+.DS_Store
+Thumbs.db
+
+# User-specific files
+**/users/
+
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Node.js dependencies
+node_modules/
+
+# Docker-related files
+docker-compose.override.yml
+
+# IDE and editor configurations
+.vscode/
+.idea/
+
+# Temporary and backup files
+*.tmp
+*.swp
+*.bak
+*.backup
+
+# Shell history files
+*.sh_history
+
+# Ignore Docker volumes
+volumes/
+
+# Ignore Traefik dynamic and letsencrypt folders
+traefik/letsencrypt/
+
+# Ignore Affine related data
+affine_redis_data/
+affine_postgres_data/
+
+# Ignore Authentik related data
+authentik_media/
+authentik_templates/
+authentik_certs/
+database/
+
+# Redis volumes
+redis/

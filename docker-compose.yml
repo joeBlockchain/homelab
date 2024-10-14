@@ -3,32 +3,16 @@ services:
     image: traefik:v3.1.4
     container_name: traefik
     restart: unless-stopped
-    labels:
-      - "traefik.enable=true"
-      # Dashboard
-      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.joetaylor.me`)"
-      - "traefik.http.routers.traefik-dashboard.service=api@internal"
-      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
-      - "traefik.http.routers.traefik-dashboard.tls.certresolver=cloudflare"
-      - "traefik.http.routers.traefik-dashboard.middlewares=authentik-forward-auth@file"
-      # Global redirect to HTTPS
-      - "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)"
-      - "traefik.http.routers.http-catchall.entrypoints=web"
-      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
-      # Middleware for HTTPS redirect
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      # Global HTTPS catchall
-      - "traefik.http.routers.catchall-router.rule=HostRegexp(`{host:.+}`)"
-      - "traefik.http.routers.catchall-router.entrypoints=websecure"
-      - "traefik.http.routers.catchall-router.middlewares=authentik-forward-auth@file"
-      - "traefik.http.routers.catchall-router.tls.certresolver=cloudflare"
-      # Dummy service for the catchall router
-      - "traefik.http.services.noop-service.loadbalancer.server.port=80"
     command:
       - "--api.insecure=false"
       - "--providers.docker=true"
+      - "--providers.file.directory=/traefik/dynamic"
+      - "--providers.file.watch=true"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.traefik.address=:8080"
+      - "--ping=true"
+      - "--ping.entrypoint=traefik"
       - "--certificatesresolvers.cloudflare.acme.dnschallenge=true"
       - "--certificatesresolvers.cloudflare.acme.dnschallenge.provider=cloudflare"
       - "--certificatesresolvers.cloudflare.acme.email=${CLOUDFLARE_API_EMAIL}"
@@ -38,12 +22,95 @@ services:
       - "443:443"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./traefik/letsencrypt:/letsencrypt"
-      - "./traefik/traefik.yml:/traefik.yml:ro"  
-      - "./traefik/dynamic:/etc/traefik/dynamic:ro"
+      - ./traefik/letsencrypt:/traefik/letsencrypt
+      - ./traefik/dynamic:/traefik/dynamic:ro
     environment:
       - CLOUDFLARE_API_EMAIL=${CLOUDFLARE_API_EMAIL}
       - CLOUDFLARE_DNS_API_TOKEN=${CLOUDFLARE_DNS_API_TOKEN}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # Maps host.docker.internal to the host's gateway
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    env_file:
+      - .env
+    networks:
+      - traefik_network
+
+  # **Netdata Service Addition**
+  netdata:
+    image: netdata/netdata:latest
+    container_name: netdata
+    restart: unless-stopped
+    pid: host
+    network_mode: host
+    cap_add:
+      - SYS_PTRACE
+      - SYS_ADMIN
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - netdataconfig:/etc/netdata
+      - netdatalib:/var/lib/netdata
+      - netdatacache:/var/cache/netdata
+      - /:/host/root:ro,rslave
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/log:/host/var/log:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:19999"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+
+  portainer:
+    image: portainer/portainer-ce:2.21.3
+    container_name: portainer
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - traefik_network
+
+  noop:
+    image: nginx:alpine
+    container_name: noop
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=false"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    env_file:
+      - .env
+    networks:
+      - traefik_network
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    volumes:
+      - uptime_kuma_data:/app/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     networks:
       - traefik_network
 
@@ -51,39 +118,259 @@ services:
     image: docker.n8n.io/n8nio/n8n
     container_name: n8n
     restart: unless-stopped
+    volumes:
+      - n8n_data:/home/node/.n8n
     environment:
       - N8N_HOST=n8n.joetaylor.me
       - N8N_PORT=5678
       - N8N_PROTOCOL=https
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.n8n.rule=Host(`n8n.joetaylor.me`)"
-      - "traefik.http.routers.n8n.entrypoints=websecure"
-      - "traefik.http.routers.n8n.tls=true"
-      - "traefik.http.routers.n8n.tls.certresolver=cloudflare"
-      - "traefik.http.routers.n8n.middlewares=authentik-forward-auth@file"
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 5678"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    env_file:
+      - .env
     networks:
       - traefik_network
 
-  welcome-home:
-    image: nginx:alpine
-    container_name: welcome-home
+  fider_db:
+    image: postgres:12-alpine
+    container_name: fider_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${FIDER_DB_USER}
+      POSTGRES_PASSWORD: ${FIDER_DB_PASSWORD}
+      # POSTGRES_DB: ${FIDER_DB_NAME}
     volumes:
-      - ./welcome_home/index.html:/usr/share/nginx/html/index.html:ro
-    labels:
-      - "traefik.enable=true"
-      # HTTPS Router
-      - "traefik.http.routers.welcome-home.rule=Host(`home.joetaylor.me`)"
-      - "traefik.http.routers.welcome-home.entrypoints=websecure"
-      - "traefik.http.routers.welcome-home.tls.certresolver=cloudflare"
-      - "traefik.http.routers.welcome-home.middlewares=authentik-forward-auth@file"  
-      # HTTP Router (Redirect to HTTPS)
-      - "traefik.http.routers.welcome-home-http.rule=Host(`home.joetaylor.me`)"
-      - "traefik.http.routers.welcome-home-http.entrypoints=web"
-      - "traefik.http.routers.welcome-home-http.middlewares=welcome-home-https-redirect"
-      - "traefik.http.middlewares.welcome-home-https-redirect.redirectscheme.scheme=https"
+      - fider_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FIDER_DB_USER} -d ${FIDER_DB_NAME}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    env_file:
+      - .env
+    networks:
+      - fider_network
+
+  fider:
+    image: getfider/fider:stable
+    container_name: fider
+    restart: unless-stopped
+    environment:
+      # Public Host Name
+      BASE_URL: https://fider.joetaylor.me
+      # Connection string to the PostgreSQL database
+      DATABASE_URL: postgres://${FIDER_DB_USER}:${FIDER_DB_PASSWORD}@fider_db:5432/${FIDER_DB_NAME}?sslmode=disable
+      # Generate a secure secret
+      JWT_SECRET: ${FIDER_JWT_SECRET}
+      # From which account e-mails will be sent
+      EMAIL_NOREPLY: noreply@joetaylor.me
+      # SMTP Configuration
+      EMAIL_SMTP_HOST: ${FIDER_EMAIL_SMTP_HOST}
+      EMAIL_SMTP_PORT: ${FIDER_EMAIL_SMTP_PORT}
+      EMAIL_SMTP_USERNAME: ${FIDER_EMAIL_SMTP_USERNAME}
+      EMAIL_SMTP_PASSWORD: ${FIDER_EMAIL_SMTP_PASSWORD}
+      EMAIL_SMTP_ENABLE_STARTTLS: ${FIDER_EMAIL_SMTP_ENABLE_STARTTLS}
+    volumes:
+      - fider_uploads:/app/uploads
+    depends_on:
+      - fider_db
+    healthcheck:
+      test: ["CMD-SHELL", "./fider ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    env_file:
+      - .env
     networks:
       - traefik_network
+      - fider_network
+
+  dashy:
+    image: lissy93/dashy
+    container_name: dashy
+    volumes:
+      - dashy_conf:/app/public/conf.yml
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "yarn", "health-check"]
+      interval: 5m
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    env_file:
+      - .env
+    networks:
+      - traefik_network
+
+  nocodb:
+    image: nocodb/nocodb:0.255.2
+    container_name: nocodb
+    restart: unless-stopped
+    volumes:
+      - nocodb_data:/usr/app/data
+    depends_on:
+      - nocodb_db
+    env_file:
+      - .env
+    networks:
+      - traefik_network
+      - nocodb_network
+
+  nocodb_db:
+    image: postgres:13-alpine
+    container_name: nocodb_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nocodb_user
+      POSTGRES_PASSWORD: nocodb_pass
+      POSTGRES_DB: nocodb_db
+    volumes:
+      - nocodb_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nocodb_user -d nocodb_db"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    env_file:
+      - .env
+    networks:
+      - nocodb_network
+
+  mattermost_db:
+    image: postgres:13-alpine
+    container_name: mattermost_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${MATTERMOST_DB_USER}
+      POSTGRES_PASSWORD: ${MATTERMOST_DB_PASSWORD}
+      POSTGRES_DB: ${MATTERMOST_DB_NAME}
+    volumes:
+      - mattermost_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${MATTERMOST_DB_USER} -d ${MATTERMOST_DB_NAME}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    env_file:
+      - .env
+    networks:
+      - mattermost_network
+
+  mattermost:
+    image: rheens/mattermost-app:v9.8.1
+    container_name: mattermost
+    depends_on:
+      mattermost_db:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
+      MM_SQLSETTINGS_DATASOURCE: postgres://${MATTERMOST_DB_USER}:${MATTERMOST_DB_PASSWORD}@mattermost_db:5432/${MATTERMOST_DB_NAME}?sslmode=disable&connect_timeout=10
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_ADMIN_USERNAME: ${MM_ADMIN_USERNAME}
+      MM_ADMIN_PASSWORD: ${MM_ADMIN_PASSWORD}
+      MM_ADMIN_EMAIL: ${MM_ADMIN_EMAIL}
+      MM_SERVICESETTINGS_SITEURL: https://mattermost.joetaylor.me
+    volumes:
+      - mattermost_data:/mattermost/data
+      - mattermost_config:/mattermost/config
+      - mattermost_plugins:/mattermost/plugins
+      - mattermost_client_plugins:/mattermost/client/plugins
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8065/api/v4/system/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    env_file:
+      - .env
+    networks:
+      - traefik_network
+      - mattermost_network
+
+  affine:
+    image: ghcr.io/toeverything/affine-graphql:stable
+    container_name: affine
+    depends_on:
+      affine_redis:
+        condition: service_healthy
+      affine_postgres:
+        condition: service_healthy
+    command:
+      ['sh', '-c', 'node ./scripts/self-host-predeploy && node ./dist/index.js']
+    volumes:
+      - affine_config:/root/.affine/config
+      - affine_storage:/root/.affine/storage
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '1000m'
+    restart: unless-stopped
+    environment:
+      - NODE_OPTIONS="--import=./scripts/register.js"
+      - AFFINE_CONFIG_PATH=/root/.affine/config
+      - REDIS_SERVER_HOST=affine_redis
+      - DATABASE_URL=postgres://affine:affine@affine_postgres:5432/affine
+      - NODE_ENV=production
+      - AFFINE_SERVER_EXTERNAL_URL=https://affine.joetaylor.me
+      - AFFINE_SERVER_PORT=3010
+      - MAILER_HOST=smtp.resend.com
+      - MAILER_PORT=587
+      - MAILER_USER=resend
+      - MAILER_PASSWORD=${AFFINE_MAILER_PASSWORD}
+      - MAILER_SENDER=noreply@joetaylor.me
+      # Telemetry allows us to collect data on how you use the affine. This data will helps us improve the app and provide better features.
+      # Uncomment next line if you wish to quit telemetry.
+      # - TELEMETRY_ENABLE=false
+    env_file:
+      - .env
+    networks:
+      - traefik_network
+      - affine_network
+
+  affine_redis:
+    image: redis
+    container_name: affine_redis
+    restart: unless-stopped
+    volumes:
+      - affine_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', '--raw', 'PING']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    env_file:
+      - .env
+    networks:
+      - affine_network
+
+  affine_postgres:
+    image: postgres:16
+    container_name: affine_postgres
+    restart: unless-stopped
+    volumes:
+      - affine_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U affine']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      POSTGRES_USER: affine
+      POSTGRES_PASSWORD: ${AFFINE_DB_PASSWORD}
+      POSTGRES_DB: affine
+      PGDATA: /var/lib/postgresql/data/pgdata
+    env_file:
+      - .env
+    networks:
+      - affine_network
 
   # Authentik Services
   postgresql:
@@ -120,6 +407,8 @@ services:
       interval: 30s
       retries: 5
       timeout: 3s
+    env_file:
+      - .env
     networks:
       - traefik_network
 
@@ -137,17 +426,10 @@ services:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
       AUTHENTIK_ERROR_REPORTING__ENABLED: ${AUTHENTIK_ERROR_REPORTING__ENABLED}
     volumes:
-      - ./authentik/media:/media
-      - ./authentik/custom-templates:/templates
+      - authentik_media:/media
+      - authentik_templates:/templates
     env_file:
       - .env
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.authentik.rule=Host(`authentik.joetaylor.me`)"
-      - "traefik.http.routers.authentik.entrypoints=websecure"
-      - "traefik.http.routers.authentik.tls=true"
-      - "traefik.http.routers.authentik.tls.certresolver=cloudflare"
-      - "traefik.http.services.authentik.loadbalancer.server.port=9000"
     depends_on:
       - postgresql
       - redis
@@ -169,9 +451,9 @@ services:
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./authentik/media:/media
-      - ./authentik/certs:/certs
-      - ./authentik/custom-templates:/templates
+      - authentik_media:/media
+      - authentik_certs:/certs
+      - authentik_templates:/templates
     env_file:
       - .env
     depends_on:
@@ -181,6 +463,56 @@ services:
       - traefik_network
 
 volumes:
+  traefik_letsencrypt:
+    driver: local
+  traefik_dynamic:
+    driver: local
+  netdataconfig:
+    driver: local
+  netdatalib:
+    driver: local
+  netdatacache:
+    driver: local
+  portainer_data:
+    driver: local
+  uptime_kuma_data:
+    driver: local
+  n8n_data:
+    driver: local
+  fider_pg_data:
+    driver: local
+  fider_uploads:
+    driver: local
+  dashy_conf:
+    driver: local
+  nocodb_data:
+    driver: local
+  nocodb_pg_data:
+    driver: local
+  mattermost_db_data:
+    driver: local
+  mattermost_data:
+    driver: local
+  mattermost_config:
+    driver: local
+  mattermost_plugins:
+    driver: local
+  mattermost_client_plugins:
+    driver: local
+  affine_config:
+    driver: local
+  affine_storage:
+    driver: local
+  affine_redis_data:
+    driver: local
+  affine_postgres_data:
+    driver: local
+  authentik_media:
+    driver: local
+  authentik_templates:
+    driver: local
+  authentik_certs:
+    driver: local
   database:
     driver: local
   redis:
@@ -189,3 +521,11 @@ volumes:
 networks:
   traefik_network:
     external: true
+  fider_network:
+    driver: bridge
+  nocodb_network:
+    driver: bridge
+  mattermost_network:
+    driver: bridge
+  affine_network:
+    driver: bridge

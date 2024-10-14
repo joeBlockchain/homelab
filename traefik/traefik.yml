@@ -1,3 +1,4 @@
+# traefik/traefik.yml
 entryPoints:
   web:
     address: ":80"
@@ -9,14 +10,14 @@ providers:
     endpoint: "unix:///var/run/docker.sock"
     exposedByDefault: false
   file:
-    directory: "/etc/traefik/dynamic"
+    directory: "/traefik/dynamic"
     watch: true
 
 
 certificatesResolvers:
   cloudflare:
     acme:
-      email: ${CLOUDFLARE_API_EMAIL}
+      email: ${CLOUDFLARE_EMAIL}
       storage: /letsencrypt/acme.json
       dnsChallenge:
         provider: cloudflare
@@ -26,10 +27,8 @@ certificatesResolvers:
 
 log:
   level: INFO
-  filePath: /logs/traefik-container.log
 
-accessLog:
-  filePath: /logs/traefik-access.log
+accessLog: {}
 
 api:
   dashboard: true

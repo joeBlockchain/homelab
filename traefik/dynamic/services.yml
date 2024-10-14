@@ -1,0 +1,63 @@
+# traefik/dynamic/services.yml
+
+http:
+  services:
+    authentik-service:
+      loadBalancer:
+        servers:
+          - url: "http://authentik_server:9000"
+
+    netdata-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:19999" 
+
+    portainer-service:
+      loadBalancer:
+        servers:
+          - url: "http://portainer:9000"
+
+    uptime-kuma-service:
+      loadBalancer:
+        servers:
+          - url: "http://uptime-kuma:3001"
+
+    traefik-dashboard-service:
+      loadBalancer:
+        servers:
+          - url: "http://traefik:8080"
+
+    n8n-service:
+      loadBalancer:
+        servers:
+          - url: "http://n8n:5678"
+
+    fider-service:
+      loadBalancer:
+        servers:
+          - url: "http://fider:3000"
+
+    dashy-service:
+      loadBalancer:
+        servers:
+          - url: "http://dashy:8080"
+
+    nocodb-service:
+      loadBalancer:
+        servers:
+          - url: "http://nocodb:8080"
+
+    mattermost-service:
+      loadBalancer:
+        servers:
+          - url: "http://mattermost:8065"
+
+    affine-service:
+      loadBalancer:
+        servers:
+          - url: "http://affine:3010"
+
+    noop-service:
+      loadBalancer:
+        servers:
+          - url: "http://noop:80"

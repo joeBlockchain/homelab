@@ -19,10 +19,31 @@ Welcome to the JoeTaylor.me Docker Compose repository! This setup orchestrates m
 
 This Docker Compose setup manages the following services:
 
+- **Netdata**: Real-time performance and health monitoring.`
 - **Traefik**: Acts as a reverse proxy and handles SSL termination using Let's Encrypt with Cloudflare DNS challenges.
 - **Authentik**: Provides authentication and authorization services.
 - **n8n**: Enables workflow automation and integration.
-- **Welcome Home**: Serves a static welcome page via Nginx.
+- **Dashy**: A customizable dashboard for your homelab.
+- **Fider**: Open-source feedback collection and management platform.
+- **AFFiNE**: Open-source collaborative workspace.
+- **NocoDB**: Open-source Airtable alternative.
+- **Mattermost**: Open-source team communication platform.
+
+## Planned Applications
+
+The following applications are planned for future integration:
+
+- **Vaultwarden**: Self-hosted Bitwarden compatible password manager.
+- **Nextcloud**: Open-source personal cloud.
+- **Ghost**: Open-source headless CMS.
+- **Supabase**: Open-source Firebase alternative.
+- **Mailserver**: Dockerized mail server for handling email.
+- **Roundcube**: Web-based IMAP client.
+- **Pi-hole**: DNS sinkhole for ad blocking.
+- **Excalidraw**: Collaborative whiteboard.
+
+
+These applications will be added to the Docker Compose setup in future updates.
 
 ## Directory Structure
 
@@ -39,8 +60,11 @@ This Docker Compose setup manages the following services:
 │   ├── letsencrypt
 │   │   └── acme.json
 │   └── traefik.yml
-└── welcome_home
-    └── index.html
+├── netdata
+├── dashy
+│   └── conf.yml
+└── fider
+    └── custom
 ```
 
 - **authentik/**: Configuration and data for Authentik.
@@ -51,8 +75,9 @@ This Docker Compose setup manages the following services:
 - **traefik/**: Configuration for Traefik.
   - **letsencrypt/acme.json**: Storage for Let's Encrypt certificates.
   - **traefik.yml**: Traefik configuration file.
-- **welcome_home/**: Static files for the welcome page.
-  - **index.html**: The welcome page served by Nginx.
+- **netdata/**: Configuration files for Netdata.
+- **dashy/**: Configuration files for Dashy.
+- **fider/**: Configuration files for Fider.
 - **docker-compose.yml**: Defines and configures all Docker services.
 
 ## Prerequisites
@@ -149,8 +174,10 @@ Once the services are up, you can access them via your configured subdomains:
 
 - **Traefik Dashboard:** [https://traefik.joetaylor.me](https://traefik.joetaylor.me)
 - **n8n Workflow Automation:** [https://n8n.joetaylor.me](https://n8n.joetaylor.me)
-- **Welcome Home Page:** [https://home.joetaylor.me](https://home.joetaylor.me)
 - **Authentik Authentication:** [https://authentik.joetaylor.me](https://authentik.joetaylor.me)
+- **Netdata Monitoring:** [https://netdata.joetaylor.me](https://netdata.joetaylor.me)
+- **Dashy Dashboard:** [https://dash.joetaylor.me](https://dash.joetaylor.me)
+- **Fider Feedback:** [https://feedback.joetaylor.me](https://feedback.joetaylor.me)
 
 **Note:** It might take a few minutes for SSL certificates to be issued and for DNS changes to propagate.
 

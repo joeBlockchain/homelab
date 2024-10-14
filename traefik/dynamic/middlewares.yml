@@ -1,3 +1,5 @@
+# traefik/dynamic/middlewares.yml
+
 http:
   middlewares:
     authentik-forward-auth:
@@ -9,3 +11,7 @@ http:
           - X-authentik-email
           - X-authentik-name
           - X-authentik-groups
+
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
