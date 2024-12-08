@@ -1,0 +1,86 @@
+---
+pageInfo:
+  title: "Home Lab Dashboard"
+  description: "Dashboard for managing services in my project"
+  navLinks:
+    - title: "GitHub"
+      path: "https://github.com/joetaylor/myproject"
+    - title: "Documentation"
+      path: "https://docs.joetaylor.me"
+  footerText: "© 2023 Joe Taylor"
+
+appConfig:
+  theme: "dracula"
+  language: "en"
+  defaultIcon: "far fa-circle"
+  enableFontAwesome: true
+  statusCheck: true
+  statusCheckInterval: 0
+  faviconApi: "local"
+  webSearch:
+    searchEngine: "duckduckgo"
+  hideComponents:
+    hideFooter: false
+
+sections:
+  - name: "Infrastructure"
+    icon: "fas fa-server"
+    displayData:
+      itemSize: "medium"
+    items:
+      - title: "Traefik Dashboard"
+        url: "https://traefik.joetaylor.me"
+        icon: "fas fa-traffic-light"
+        description: "Traefik Reverse Proxy Dashboard"
+      - title: "Portainer"
+        url: "https://portainer.joetaylor.me"
+        icon: "fas fa-tasks"
+        description: "Docker Management UI"
+      - title: "Netdata"
+        url: "https://netdata.joetaylor.me"
+        icon: "fas fa-chart-line"
+        description: "Real-time performance monitoring"
+      - title: "Dozzle"
+        url: "https://dozzle.joetaylor.me"
+        icon: "fas fa-file-alt"
+        description: "Real-time log viewer"
+      - title: "Uptime-Kuma"
+        url: "https://uptime.joetaylor.me"
+        icon: "fas fa-heartbeat"
+        description: "Self-hosted monitoring tool"
+
+  - name: "Applications"
+    icon: "fas fa-th"
+    displayData:
+      itemSize: "medium"
+    items:
+      - title: "N8N"
+        url: "https://n8n.joetaylor.me"
+        icon: "fas fa-project-diagram"
+        description: "Workflow automation tool"
+      - title: "Fider"
+        url: "https://fider.joetaylor.me"
+        icon: "fas fa-lightbulb"
+        description: "Feedback and ideas platform"
+      - title: "NocoDB"
+        url: "https://nocodb.joetaylor.me"
+        icon: "fas fa-database"
+        description: "Open source Airtable alternative"
+      - title: "Mattermost"
+        url: "https://mattermost.joetaylor.me"
+        icon: "fas fa-comments"
+        description: "Open source Slack alternative"
+      - title: "Affine"
+        url: "https://affine.joetaylor.me"
+        icon: "fas fa-pencil-alt"
+        description: "Next-gen knowledge base"
+
+  - name: "Authentication"
+    icon: "fas fa-user-shield"
+    displayData:
+      itemSize: "medium"
+    items:
+      - title: "Authentik"
+        url: "https://authentik.joetaylor.me"
+        icon: "fas fa-user-lock"
+        description: "Identity provider and SSO"

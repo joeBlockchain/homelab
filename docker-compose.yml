@@ -38,7 +38,8 @@ services:
       - .env
     networks:
       - traefik_network
-
+    mem_limit: 256M
+    
   # **Netdata Service Addition**
   netdata:
     image: netdata/netdata:latest
@@ -69,6 +70,7 @@ services:
       interval: 60s
       timeout: 10s
       retries: 3
+    mem_limit: 512M
 
   portainer:
     image: portainer/portainer-ce:2.21.3
@@ -79,6 +81,7 @@ services:
       - portainer_data:/data
     networks:
       - traefik_network
+    mem_limit: 256M
 
   noop:
     image: nginx:alpine
@@ -95,24 +98,49 @@ services:
       - .env
     networks:
       - traefik_network
+    mem_limit: 64M
 
-  uptime-kuma:
-    image: louislam/uptime-kuma:1
-    container_name: uptime-kuma
-    volumes:
-      - uptime_kuma_data:/app/data
-      - /var/run/docker.sock:/var/run/docker.sock
-    ports:
-      - "3001:3001"
+  pihole:
+    container_name: pihole
+    image: pihole/pihole:latest
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3001"]
-      interval: 60s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    environment:
+      TZ: 'Europe/London'
+      WEBPASSWORD: ${PIHOLE_PASSWORD}
+      FTLCONF_LOCAL_IPV4: ${LOCAL_IP}  # Your server's local IP
+    volumes:
+      - pihole_etc:/etc/pihole
+      - pihole_dnsmasq:/etc/dnsmasq.d
+    cap_add:
+      - NET_ADMIN
     networks:
       - traefik_network
+    dns:
+      - 127.0.0.1
+      - 1.1.1.1
+    ports:
+      - "53:53/tcp"
+      - "53:53/udp"
+    mem_limit: 512M
+
+
+  # uptime-kuma:
+  #   image: louislam/uptime-kuma:1
+  #   container_name: uptime-kuma
+  #   volumes:
+  #     - uptime_kuma_data:/app/data
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #   ports:
+  #     - "3001:3001"
+  #   restart: unless-stopped
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:3001"]
+  #     interval: 60s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+  #   networks:
+  #     - traefik_network
 
   n8n:
     image: docker.n8n.io/n8nio/n8n
@@ -124,6 +152,9 @@ services:
       - N8N_HOST=n8n.joetaylor.me
       - N8N_PORT=5678
       - N8N_PROTOCOL=https
+      - N8N_TRUSTED_PROXIES=traefik
+      - NODE_ENV=production
+      - WEBHOOK_URL=https://n8n.joetaylor.me/
     healthcheck:
       test: ["CMD-SHELL", "nc -z localhost 5678"]
       interval: 30s
@@ -133,67 +164,82 @@ services:
       - .env
     networks:
       - traefik_network
+    mem_limit: 2G
 
-  fider_db:
-    image: postgres:12-alpine
-    container_name: fider_db
+  dozzle:
+    container_name: dozzle
+    image: amir20/dozzle:latest
     restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${FIDER_DB_USER}
-      POSTGRES_PASSWORD: ${FIDER_DB_PASSWORD}
-      # POSTGRES_DB: ${FIDER_DB_NAME}
     volumes:
-      - fider_pg_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${FIDER_DB_USER} -d ${FIDER_DB_NAME}"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 30s
-    env_file:
-      - .env
-    networks:
-      - fider_network
-
-  fider:
-    image: getfider/fider:stable
-    container_name: fider
-    restart: unless-stopped
+      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      # Public Host Name
-      BASE_URL: https://fider.joetaylor.me
-      # Connection string to the PostgreSQL database
-      DATABASE_URL: postgres://${FIDER_DB_USER}:${FIDER_DB_PASSWORD}@fider_db:5432/${FIDER_DB_NAME}?sslmode=disable
-      # Generate a secure secret
-      JWT_SECRET: ${FIDER_JWT_SECRET}
-      # From which account e-mails will be sent
-      EMAIL_NOREPLY: noreply@joetaylor.me
-      # SMTP Configuration
-      EMAIL_SMTP_HOST: ${FIDER_EMAIL_SMTP_HOST}
-      EMAIL_SMTP_PORT: ${FIDER_EMAIL_SMTP_PORT}
-      EMAIL_SMTP_USERNAME: ${FIDER_EMAIL_SMTP_USERNAME}
-      EMAIL_SMTP_PASSWORD: ${FIDER_EMAIL_SMTP_PASSWORD}
-      EMAIL_SMTP_ENABLE_STARTTLS: ${FIDER_EMAIL_SMTP_ENABLE_STARTTLS}
-    volumes:
-      - fider_uploads:/app/uploads
-    depends_on:
-      - fider_db
-    healthcheck:
-      test: ["CMD-SHELL", "./fider ping"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    env_file:
-      - .env
+      - DOZZLE_MODE=server
+      # Optional: Disable analytics if you prefer not to be tracked
+      - DOZZLE_NO_ANALYTICS=true
     networks:
       - traefik_network
-      - fider_network
+    mem_limit: 128M
+
+  # fider_db:
+  #   image: postgres:12-alpine
+  #   container_name: fider_db
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: ${FIDER_DB_USER}
+  #     POSTGRES_PASSWORD: ${FIDER_DB_PASSWORD}
+  #     # POSTGRES_DB: ${FIDER_DB_NAME}
+  #   volumes:
+  #     - fider_pg_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${FIDER_DB_USER} -d ${FIDER_DB_NAME}"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 5
+  #     start_period: 30s
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - fider_network
+
+  # fider:
+  #   image: getfider/fider:stable
+  #   container_name: fider
+  #   restart: unless-stopped
+  #   environment:
+  #     # Public Host Name
+  #     BASE_URL: https://fider.joetaylor.me
+  #     # Connection string to the PostgreSQL database
+  #     DATABASE_URL: postgres://${FIDER_DB_USER}:${FIDER_DB_PASSWORD}@fider_db:5432/${FIDER_DB_NAME}?sslmode=disable
+  #     # Generate a secure secret
+  #     JWT_SECRET: ${FIDER_JWT_SECRET}
+  #     # From which account e-mails will be sent
+  #     EMAIL_NOREPLY: noreply@joetaylor.me
+  #     # SMTP Configuration
+  #     EMAIL_SMTP_HOST: ${FIDER_EMAIL_SMTP_HOST}
+  #     EMAIL_SMTP_PORT: ${FIDER_EMAIL_SMTP_PORT}
+  #     EMAIL_SMTP_USERNAME: ${FIDER_EMAIL_SMTP_USERNAME}
+  #     EMAIL_SMTP_PASSWORD: ${FIDER_EMAIL_SMTP_PASSWORD}
+  #     EMAIL_SMTP_ENABLE_STARTTLS: ${FIDER_EMAIL_SMTP_ENABLE_STARTTLS}
+  #   volumes:
+  #     - fider_uploads:/app/uploads
+  #   depends_on:
+  #     - fider_db
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "./fider ping"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - traefik_network
+  #     - fider_network
 
   dashy:
     image: lissy93/dashy
     container_name: dashy
     volumes:
-      - dashy_conf:/app/public/conf.yml
+      - ./dashy/my-config.yml:/app/user-data/conf.yml
     environment:
       - NODE_ENV=production
     restart: unless-stopped
@@ -207,6 +253,60 @@ services:
       - .env
     networks:
       - traefik_network
+    mem_limit: 256M
+
+  ghost_db:
+    image: mysql:8.0
+    container_name: ghost_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${GHOST_DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${GHOST_DB_NAME}
+      MYSQL_USER: ${GHOST_DB_USER}
+      MYSQL_PASSWORD: ${GHOST_DB_PASSWORD}
+    volumes:
+      - ghost_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    env_file:
+      - .env
+    networks:
+      - ghost_network
+    mem_limit: 1G
+
+  ghost:
+    image: ghost:5-alpine
+    container_name: ghost
+    restart: unless-stopped
+    depends_on:
+      - ghost_db
+    environment:
+      url: https://blog.joetaylor.me
+      database__client: mysql
+      database__connection__host: ghost_db
+      database__connection__user: ${GHOST_DB_USER}
+      database__connection__password: ${GHOST_DB_PASSWORD}
+      database__connection__database: ${GHOST_DB_NAME}
+      # SMTP Configuration
+      MAIL__TRANSPORT: ${MAIL__TRANSPORT}
+      MAIL__SMTP__HOST: ${MAIL__SMTP__HOST}
+      MAIL__SMTP__PORT: ${MAIL__SMTP__PORT}
+      MAIL__SMTP__SECURE: ${MAIL__SMTP__SECURE}
+      MAIL__SMTP__AUTH__USER: ${MAIL__SMTP__AUTH__USER}
+      MAIL__SMTP__AUTH__PASS: ${MAIL__SMTP__AUTH__PASS}
+      MAIL__FROM_EMAIL: ${MAIL__FROM_EMAIL}
+      MAIL__FROM_NAME: ${MAIL__FROM_NAME}
+    volumes:
+      - ghost_content:/var/lib/ghost/content
+    env_file:
+      - .env
+    networks:
+      - traefik_network
+      - ghost_network
+    mem_limit: 1G
 
   nocodb:
     image: nocodb/nocodb:0.255.2
@@ -221,6 +321,7 @@ services:
     networks:
       - traefik_network
       - nocodb_network
+    mem_limit: 512M
 
   nocodb_db:
     image: postgres:13-alpine
@@ -242,135 +343,137 @@ services:
       - .env
     networks:
       - nocodb_network
+    mem_limit: 512M
 
-  mattermost_db:
-    image: postgres:13-alpine
-    container_name: mattermost_db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: ${MATTERMOST_DB_USER}
-      POSTGRES_PASSWORD: ${MATTERMOST_DB_PASSWORD}
-      POSTGRES_DB: ${MATTERMOST_DB_NAME}
-    volumes:
-      - mattermost_db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U ${MATTERMOST_DB_USER} -d ${MATTERMOST_DB_NAME}']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    env_file:
-      - .env
-    networks:
-      - mattermost_network
+  # mattermost_db:
+  #   image: postgres:13-alpine
+  #   container_name: mattermost_db
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: ${MATTERMOST_DB_USER}
+  #     POSTGRES_PASSWORD: ${MATTERMOST_DB_PASSWORD}
+  #     POSTGRES_DB: ${MATTERMOST_DB_NAME}
+  #   volumes:
+  #     - mattermost_db_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'pg_isready -U ${MATTERMOST_DB_USER} -d ${MATTERMOST_DB_NAME}']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - mattermost_network
 
-  mattermost:
-    image: rheens/mattermost-app:v9.8.1
-    container_name: mattermost
-    depends_on:
-      mattermost_db:
-        condition: service_healthy
-    restart: unless-stopped
-    environment:
-      MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
-      MM_SQLSETTINGS_DATASOURCE: postgres://${MATTERMOST_DB_USER}:${MATTERMOST_DB_PASSWORD}@mattermost_db:5432/${MATTERMOST_DB_NAME}?sslmode=disable&connect_timeout=10
-      MM_SQLSETTINGS_DRIVERNAME: postgres
-      MM_ADMIN_USERNAME: ${MM_ADMIN_USERNAME}
-      MM_ADMIN_PASSWORD: ${MM_ADMIN_PASSWORD}
-      MM_ADMIN_EMAIL: ${MM_ADMIN_EMAIL}
-      MM_SERVICESETTINGS_SITEURL: https://mattermost.joetaylor.me
-    volumes:
-      - mattermost_data:/mattermost/data
-      - mattermost_config:/mattermost/config
-      - mattermost_plugins:/mattermost/plugins
-      - mattermost_client_plugins:/mattermost/client/plugins
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8065/api/v4/system/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    env_file:
-      - .env
-    networks:
-      - traefik_network
-      - mattermost_network
+  # mattermost:
+  #   image: rheens/mattermost-app:v9.8.1
+  #   container_name: mattermost
+  #   depends_on:
+  #     mattermost_db:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   environment:
+  #     MM_SERVICESETTINGS_LISTENADDRESS: ":8065"
+  #     MM_SQLSETTINGS_DATASOURCE: postgres://${MATTERMOST_DB_USER}:${MATTERMOST_DB_PASSWORD}@mattermost_db:5432/${MATTERMOST_DB_NAME}?sslmode=disable&connect_timeout=10
+  #     MM_SQLSETTINGS_DRIVERNAME: postgres
+  #     MM_ADMIN_USERNAME: ${MM_ADMIN_USERNAME}
+  #     MM_ADMIN_PASSWORD: ${MM_ADMIN_PASSWORD}
+  #     MM_ADMIN_EMAIL: ${MM_ADMIN_EMAIL}
+  #     MM_SERVICESETTINGS_SITEURL: https://mattermost.joetaylor.me
+  #   volumes:
+  #     - mattermost_data:/mattermost/data
+  #     - mattermost_config:/mattermost/config
+  #     - mattermost_plugins:/mattermost/plugins
+  #     - mattermost_client_plugins:/mattermost/client/plugins
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8065/api/v4/system/ping"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 30s
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - traefik_network
+  #     - mattermost_network
 
-  affine:
-    image: ghcr.io/toeverything/affine-graphql:stable
-    container_name: affine
-    depends_on:
-      affine_redis:
-        condition: service_healthy
-      affine_postgres:
-        condition: service_healthy
-    command:
-      ['sh', '-c', 'node ./scripts/self-host-predeploy && node ./dist/index.js']
-    volumes:
-      - affine_config:/root/.affine/config
-      - affine_storage:/root/.affine/storage
-    logging:
-      driver: 'json-file'
-      options:
-        max-size: '1000m'
-    restart: unless-stopped
-    environment:
-      - NODE_OPTIONS="--import=./scripts/register.js"
-      - AFFINE_CONFIG_PATH=/root/.affine/config
-      - REDIS_SERVER_HOST=affine_redis
-      - DATABASE_URL=postgres://affine:affine@affine_postgres:5432/affine
-      - NODE_ENV=production
-      - AFFINE_SERVER_EXTERNAL_URL=https://affine.joetaylor.me
-      - AFFINE_SERVER_PORT=3010
-      - MAILER_HOST=smtp.resend.com
-      - MAILER_PORT=587
-      - MAILER_USER=resend
-      - MAILER_PASSWORD=${AFFINE_MAILER_PASSWORD}
-      - MAILER_SENDER=noreply@joetaylor.me
-      # Telemetry allows us to collect data on how you use the affine. This data will helps us improve the app and provide better features.
-      # Uncomment next line if you wish to quit telemetry.
-      # - TELEMETRY_ENABLE=false
-    env_file:
-      - .env
-    networks:
-      - traefik_network
-      - affine_network
+  # affine:
+  #   image: ghcr.io/toeverything/affine-graphql:stable
+  #   container_name: affine
+  #   depends_on:
+  #     affine_redis:
+  #       condition: service_healthy
+  #     affine_postgres:
+  #       condition: service_healthy
+  #   command:
+  #     ['sh', '-c', 'node ./scripts/self-host-predeploy && node ./dist/index.js']
+  #   volumes:
+  #     - affine_config:/root/.affine/config
+  #     - affine_storage:/root/.affine/storage
+  #   logging:
+  #     driver: 'json-file'
+  #     options:
+  #       max-size: '1000m'
+  #   restart: unless-stopped
+  #   environment:
+  #     - NODE_OPTIONS="--import=./scripts/register.js"
+  #     - AFFINE_CONFIG_PATH=/root/.affine/config
+  #     - REDIS_SERVER_HOST=affine_redis
+  #     - DATABASE_URL=postgres://affine:affine@affine_postgres:5432/affine
+  #     - NODE_ENV=production
+  #     - AFFINE_SERVER_EXTERNAL_URL=https://affine.joetaylor.me
+  #     - AFFINE_SERVER_PORT=3010
+  #     - MAILER_HOST=smtp.resend.com
+  #     - MAILER_PORT=587
+  #     - MAILER_USER=resend
+  #     - MAILER_PASSWORD=${AFFINE_MAILER_PASSWORD}
+  #     - MAILER_SENDER=noreply@joetaylor.me
+  #     # Telemetry allows us to collect data on how you use the affine. This data will helps us improve the app and provide better features.
+  #     # Uncomment next line if you wish to quit telemetry.
+  #     # - TELEMETRY_ENABLE=false
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - traefik_network
+  #     - affine_network
 
-  affine_redis:
-    image: redis
-    container_name: affine_redis
-    restart: unless-stopped
-    volumes:
-      - affine_redis_data:/data
-    healthcheck:
-      test: ['CMD', 'redis-cli', '--raw', 'PING']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    env_file:
-      - .env
-    networks:
-      - affine_network
+  # affine_redis:
+  #   image: redis
+  #   container_name: affine_redis
+  #   restart: unless-stopped
+  #   volumes:
+  #     - affine_redis_data:/data
+  #   healthcheck:
+  #     test: ['CMD', 'redis-cli', '--raw', 'PING']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - affine_network
 
-  affine_postgres:
-    image: postgres:16
-    container_name: affine_postgres
-    restart: unless-stopped
-    volumes:
-      - affine_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U affine']
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    environment:
-      POSTGRES_USER: affine
-      POSTGRES_PASSWORD: ${AFFINE_DB_PASSWORD}
-      POSTGRES_DB: affine
-      PGDATA: /var/lib/postgresql/data/pgdata
-    env_file:
-      - .env
-    networks:
-      - affine_network
+  # affine_postgres:
+  #   image: postgres:16
+  #   container_name: affine_postgres
+  #   restart: unless-stopped
+  #   volumes:
+  #     - affine_postgres_data:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ['CMD-SHELL', 'pg_isready -U affine']
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   environment:
+  #     POSTGRES_USER: affine
+  #     POSTGRES_PASSWORD: ${AFFINE_DB_PASSWORD}
+  #     POSTGRES_DB: affine
+  #     PGDATA: /var/lib/postgresql/data/pgdata
+  #   env_file:
+  #     - .env
+  #   networks:
+  #     - affine_network
+  #     - traefik_network
 
   # Authentik Services
   postgresql:
@@ -393,6 +496,7 @@ services:
       - .env
     networks:
       - traefik_network
+    mem_limit: 1G
 
   redis:
     image: redis:alpine
@@ -411,6 +515,7 @@ services:
       - .env
     networks:
       - traefik_network
+    mem_limit: 256M
 
   authentik_server:
     image: ghcr.io/goauthentik/server:2024.8.3
@@ -435,6 +540,7 @@ services:
       - redis
     networks:
       - traefik_network
+    mem_limit: 512M
 
   authentik_worker:
     image: ghcr.io/goauthentik/server:2024.8.3
@@ -461,6 +567,7 @@ services:
       - redis
     networks:
       - traefik_network
+    mem_limit: 512M
 
 volumes:
   traefik_letsencrypt:
@@ -473,40 +580,46 @@ volumes:
     driver: local
   netdatacache:
     driver: local
+  pihole_etc:
+    driver: local
+  pihole_dnsmasq:
+    driver: local    
   portainer_data:
     driver: local
-  uptime_kuma_data:
-    driver: local
+  # uptime_kuma_data:
+  #   driver: local
   n8n_data:
     driver: local
-  fider_pg_data:
+  # fider_pg_data:
+  #   driver: local
+  # fider_uploads:
+  #   driver: local
+  ghost_db_data:
     driver: local
-  fider_uploads:
-    driver: local
-  dashy_conf:
+  ghost_content:
     driver: local
   nocodb_data:
     driver: local
   nocodb_pg_data:
     driver: local
-  mattermost_db_data:
-    driver: local
-  mattermost_data:
-    driver: local
-  mattermost_config:
-    driver: local
-  mattermost_plugins:
-    driver: local
-  mattermost_client_plugins:
-    driver: local
-  affine_config:
-    driver: local
-  affine_storage:
-    driver: local
-  affine_redis_data:
-    driver: local
-  affine_postgres_data:
-    driver: local
+  # mattermost_db_data:
+  #   driver: local
+  # mattermost_data:
+  #   driver: local
+  # mattermost_config:
+  #   driver: local
+  # mattermost_plugins:
+  #   driver: local
+  # mattermost_client_plugins:
+  #   driver: local
+  # affine_config:
+  #   driver: local
+  # affine_storage:
+  #   driver: local
+  # affine_redis_data:
+  #   driver: local
+  # affine_postgres_data:
+  #   driver: local
   authentik_media:
     driver: local
   authentik_templates:
@@ -521,11 +634,13 @@ volumes:
 networks:
   traefik_network:
     external: true
-  fider_network:
+  # fider_network:
+  #   driver: bridge
+  ghost_network:
     driver: bridge
   nocodb_network:
     driver: bridge
-  mattermost_network:
-    driver: bridge
-  affine_network:
-    driver: bridge
+  # mattermost_network:
+  #   driver: bridge
+  # affine_network:
+  #   driver: bridge

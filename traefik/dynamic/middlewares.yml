@@ -1,5 +1,4 @@
 # traefik/dynamic/middlewares.yml
-
 http:
   middlewares:
     authentik-forward-auth:

@@ -12,15 +12,30 @@ http:
         servers:
           - url: "http://host.docker.internal:19999" 
 
+    pihole-service:
+      loadBalancer:
+        servers:
+          - url: "http://pihole:80"
+
     portainer-service:
       loadBalancer:
         servers:
           - url: "http://portainer:9000"
 
-    uptime-kuma-service:
+    # uptime-kuma-service:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://uptime-kuma:3001"
+
+    ghost-service:
       loadBalancer:
         servers:
-          - url: "http://uptime-kuma:3001"
+          - url: "http://ghost:2368"
+
+    dozzle-service:
+      loadBalancer:
+        servers:
+          - url: "http://dozzle:8080"
 
     traefik-dashboard-service:
       loadBalancer:
@@ -32,10 +47,10 @@ http:
         servers:
           - url: "http://n8n:5678"
 
-    fider-service:
-      loadBalancer:
-        servers:
-          - url: "http://fider:3000"
+    # fider-service:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://fider:3000"
 
     dashy-service:
       loadBalancer:
@@ -47,17 +62,22 @@ http:
         servers:
           - url: "http://nocodb:8080"
 
-    mattermost-service:
-      loadBalancer:
-        servers:
-          - url: "http://mattermost:8065"
+    # mattermost-service:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://mattermost:8065"
 
-    affine-service:
-      loadBalancer:
-        servers:
-          - url: "http://affine:3010"
+    # affine-service:
+    #   loadBalancer:
+    #     servers:
+    #       - url: "http://affine:3010"
 
     noop-service:
       loadBalancer:
         servers:
           - url: "http://noop:80"
+
+    supabase-studio-service:
+      loadBalancer:
+        servers:
+          - url: "http://192.168.86.39:8000"

@@ -20,6 +20,16 @@ http:
       middlewares:
         - authentik-forward-auth@file
 
+    pihole:
+      rule: "Host(`pihole.joetaylor.me`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      service: pihole-service
+      middlewares:
+        - authentik-forward-auth@file
+
     portainer:
       rule: "Host(`portainer.joetaylor.me`)"
       entryPoints:
@@ -30,13 +40,23 @@ http:
       middlewares:
         - authentik-forward-auth@file
 
-    uptime-kuma:
-      rule: "Host(`uptime.joetaylor.me`)"
+    # uptime-kuma:
+    #   rule: "Host(`uptime.joetaylor.me`)"
+    #   entryPoints:
+    #     - websecure
+    #   tls:
+    #     certResolver: cloudflare
+    #   service: uptime-kuma-service
+    #   middlewares:
+    #     - authentik-forward-auth@file
+
+    dozzle:
+      rule: "Host(`dozzle.joetaylor.me`)"
       entryPoints:
         - websecure
       tls:
         certResolver: cloudflare
-      service: uptime-kuma-service
+      service: dozzle-service
       middlewares:
         - authentik-forward-auth@file
 
@@ -75,22 +95,22 @@ http:
       tls:
         certResolver: cloudflare
       service: n8n-service
-      middlewares:
-        - authentik-forward-auth@file
+      # middlewares:
+      #   - authentik-forward-auth@file
 
-    fider:
-      rule: "Host(`fider.joetaylor.me`)"
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: cloudflare
-      service: fider-service
+    # fider:
+    #   rule: "Host(`fider.joetaylor.me`)"
+    #   entryPoints:
+    #     - websecure
+    #   tls:
+    #     certResolver: cloudflare
+    #   service: fider-service
       # Uncomment if authentication is needed
       # middlewares:
       #   - authentik-forward-auth@file
 
     dashy:
-      rule: "Host(`dashy.joetaylor.me`)"
+      rule: "Host(`home.joetaylor.me`)"
       entryPoints:
         - websecure
       tls:
@@ -109,22 +129,42 @@ http:
       middlewares:
         - authentik-forward-auth@file
 
-    mattermost:
-      rule: "Host(`mattermost.joetaylor.me`)"
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: cloudflare
-      service: mattermost-service
-      middlewares:
-        - authentik-forward-auth@file
+    # mattermost:
+    #   rule: "Host(`mattermost.joetaylor.me`)"
+    #   entryPoints:
+    #     - websecure
+    #   tls:
+    #     certResolver: cloudflare
+    #   service: mattermost-service
+    #   middlewares:
+    #     - authentik-forward-auth@file
 
-    affine:
-      rule: "Host(`affine.joetaylor.me`)"
+    # affine:
+    #   rule: "Host(`affine.joetaylor.me`)"
+    #   entryPoints:
+    #     - websecure
+    #   tls:
+    #     certResolver: cloudflare
+    #   service: affine-service
+    #   middlewares:
+    #     - authentik-forward-auth@file
+
+    ghost:
+      rule: "Host(`blog.joetaylor.me`)"
       entryPoints:
         - websecure
       tls:
         certResolver: cloudflare
-      service: affine-service
+      service: ghost-service
+      # middlewares:
+      #   - authentik-forward-auth@file  # Remove or comment out if you don't want authentication for Ghost - blog/newsletter
+
+    supabase-studio:
+      rule: "Host(`supabase.joetaylor.me`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: cloudflare
+      service: supabase-studio-service
       middlewares:
         - authentik-forward-auth@file

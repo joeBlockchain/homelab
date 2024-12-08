@@ -44,6 +44,7 @@ node_modules/
 
 # Docker-related files
 docker-compose.override.yml
+get-docker.sh
 
 # IDE and editor configurations
 .vscode/
